@@ -217,7 +217,8 @@ type Repository interface {
 	List(ctx context.Context, userID, serviceName string, limit, offset int) ([]*model.Subscription, error)
 	Update(ctx context.Context, sub *model.Subscription) error
 	Delete(ctx context.Context, id string) error
-	AggregateTotal(ctx context.Context, from, to string, userID, serviceName *string) (int, error)
+	AggregateTotal(ctx context.Context, from, to string, userID, serviceName *string) (int64, error)
+	FindSubscriptionsOverlapping(ctx context.Context, from, to string, userID, serviceName *string) ([]*model.Subscription, error)
 }
 
 type store struct {
@@ -319,7 +320,7 @@ func (s *store) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *store) AggregateTotal(ctx context.Context, from, to string, userID, serviceName *string) (int, error) {
+func (s *store) AggregateTotal(ctx context.Context, from, to string, userID, serviceName *string) (int64, error) {
 	query := `
 SELECT COALESCE(SUM(price * months), 0)::bigint AS total FROM (
   SELECT price,
@@ -348,9 +349,36 @@ SELECT COALESCE(SUM(price * months), 0)::bigint AS total FROM (
 		sname = "%" + *serviceName + "%"
 	}
 
-	var total int
+	var total int64
 	if err := s.db.GetContext(ctx, &total, query, from, to, uid, sname); err != nil {
 		return 0, err
 	}
 	return total, nil
+}
+
+func (s *store) FindSubscriptionsOverlapping(ctx context.Context, from, to string, userID, serviceName *string) ([]*model.Subscription, error) {
+	query := `
+    SELECT id, service_name, price, user_id, start_date, end_date
+    FROM subscriptions
+    WHERE start_date <= to_date($2,'MM-YYYY')
+    AND (end_date IS NULL OR end_date >= to_date($1,'MM-YYYY'))
+    AND ($3::uuid IS NULL OR user_id = $3::uuid)
+    AND ($4::text IS NULL OR service_name ILIKE $4::text)
+    ORDER BY service_name
+    `
+
+	var uid interface{} = nil
+	var sname interface{} = nil
+	if userID != nil && *userID != "" {
+		uid = *userID
+	}
+	if serviceName != nil && *serviceName != "" {
+		sname = "%" + *serviceName + "%"
+	}
+
+	subs := []*model.Subscription{}
+	if err := s.db.SelectContext(ctx, &subs, query, from, to, uid, sname); err != nil {
+		return nil, err
+	}
+	return subs, nil
 }

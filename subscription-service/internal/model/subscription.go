@@ -10,3 +10,18 @@ type Subscription struct {
 	StartDate   time.Time  `db:"start_date" json:"start_date"`
 	EndDate     *time.Time `db:"end_date" json:"end_date,omitempty"`
 }
+
+type AggregateResponse struct {
+	UserID        string             `json:"user_id,omitempty"`
+	Subscriptions []SubscriptionInfo `json:"subscriptions"`
+	From          string             `json:"from"`
+	To            string             `json:"to"`
+	Total         int64              `json:"total"`
+}
+
+type SubscriptionInfo struct {
+	Number      int    `json:"number"` // Номер подписки в списке
+	ServiceName string `json:"service_name"`
+	Price       int    `json:"price"`
+	UserID      string `json:"user_id"`
+}

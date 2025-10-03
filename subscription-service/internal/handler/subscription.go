@@ -12,8 +12,8 @@ import (
 	"subscription-service/internal/model"
 	"subscription-service/internal/service"
 
-	"github.com/gorilla/mux"
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 )
 
@@ -30,10 +30,11 @@ func NewRouter(h *Handler, log *zerolog.Logger) http.Handler {
 	r := mux.NewRouter()
 	r.HandleFunc("/subscriptions", h.CreateSubscription).Methods("POST")
 	r.HandleFunc("/subscriptions", h.ListSubscriptions).Methods("GET")
+	r.HandleFunc("/subscriptions/aggregate", h.Aggregate).Methods("GET")
 	r.HandleFunc("/subscriptions/{id}", h.GetSubscription).Methods("GET")
 	r.HandleFunc("/subscriptions/{id}", h.UpdateSubscription).Methods("PUT")
 	r.HandleFunc("/subscriptions/{id}", h.DeleteSubscription).Methods("DELETE")
-	r.HandleFunc("/subscriptions/aggregate", h.Aggregate).Methods("GET")
+
 	return r
 }
 
@@ -268,12 +269,20 @@ func (h *Handler) Aggregate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// validate format
-	if _, err := parseMonthYear(from); err != nil {
+	fromDate, err := parseMonthYear(from)
+	if err != nil {
 		http.Error(w, "invalid from format, expected MM-YYYY", http.StatusBadRequest)
 		return
 	}
-	if _, err := parseMonthYear(to); err != nil {
+	toDate, err := parseMonthYear(to)
+	if err != nil {
 		http.Error(w, "invalid to format, expected MM-YYYY", http.StatusBadRequest)
+		return
+	}
+
+	// проверка from <= to
+	if fromDate.After(toDate) {
+		http.Error(w, "`from` must be less than or equal to `to`", http.StatusBadRequest)
 		return
 	}
 
@@ -286,16 +295,23 @@ func (h *Handler) Aggregate(w http.ResponseWriter, r *http.Request) {
 		serviceName = &v
 	}
 
-	total, err := h.svc.Aggregate(r.Context(), from, to, userID, serviceName)
+	subs, total, err := h.svc.AggregateWithDetails(r.Context(), from, to, userID, serviceName)
 	if err != nil {
 		h.log.Error().Err(err).Msg("aggregate failed")
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
-	writeJSON(w, map[string]interface{}{
-		"from":  from,
-		"to":    to,
-		"total": total,
-	})
+	response := model.AggregateResponse{
+		From:          from,
+		To:            to,
+		Total:         total,
+		Subscriptions: subs,
+	}
+
+	if userID != nil {
+		response.UserID = *userID
+	}
+
+	writeJSON(w, response)
 }

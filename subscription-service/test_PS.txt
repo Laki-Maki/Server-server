@@ -3,10 +3,10 @@ $baseUrl = "http://localhost:8080"
 
 Write-Host "1. Создание подписки..."
 $createBody = @{
-    service_name = "Yandex Plus"
-    price        = 400
-    user_id      = "60601fee-2bf1-4721-ae6f-7636e79a0cba"
-    start_date   = "09-2025"
+    service_name = "TNT"
+    price        = 300
+    user_id      = "40601fee-2bf1-4721-ae6f-7636e79a0cba"
+    start_date   = "08-2025"
 } | ConvertTo-Json
 
 $created = Invoke-RestMethod -Uri "$baseUrl/subscriptions" -Method POST -Body $createBody -ContentType "application/json"
@@ -19,15 +19,16 @@ $sub | ConvertTo-Json -Depth 5
 
 Write-Host "`n3. Получение списка подписок..."
 $list = Invoke-RestMethod -Uri "$baseUrl/subscriptions?limit=10&offset=0" -Method GET
-$list | ConvertTo-Json -Depth 5
+$list | ConvertTo-Json -Depth 5 
+
 
 Write-Host "`n4. Обновление подписки..."
 $updateBody = @{
-    service_name = "Yandex Plus Premium"
+    service_name = "TNT Premium"
     price        = 500
     user_id      = "60601fee-2bf1-4721-ae6f-7636e79a0cba"
-    start_date   = "09-2025"
-    end_date     = "12-2025"
+    start_date   = "10-2025"
+    end_date     = "11-2025"
 } | ConvertTo-Json
 
 $updated = Invoke-RestMethod -Uri "$baseUrl/subscriptions/$id" -Method PUT -Body $updateBody -ContentType "application/json"
@@ -36,6 +37,7 @@ Write-Host "Обновлённая подписка:" ($updated | ConvertTo-Json
 Write-Host "`n5. Агрегация стоимости..."
 $agg = Invoke-RestMethod -Uri "$baseUrl/subscriptions/aggregate?from=09-2025&to=12-2025&user_id=60601fee-2bf1-4721-ae6f-7636e79a0cba" -Method GET
 Write-Host "Агрегированная стоимость:" ($agg | ConvertTo-Json -Depth 5)
+
 
 Write-Host "`n6. Удаление подписки..."
 Invoke-RestMethod -Uri "$baseUrl/subscriptions/$id" -Method DELETE
